@@ -491,6 +491,7 @@ def get_default_cwd() -> dict[str, object]:
     effective = session_cwd if session_cwd is not None else WORKSPACE_ROOT
     return {
         "success": True,
+        "cwd": str(resolved_cwd),
         "session_cwd": str(session_cwd) if session_cwd else None,
         "workspace_root": str(WORKSPACE_ROOT),
         "effective_cwd": str(effective),
