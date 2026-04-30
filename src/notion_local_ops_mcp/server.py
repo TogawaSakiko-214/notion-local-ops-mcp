@@ -106,13 +106,6 @@ READ_ONLY_TOOL = {
     "requiresConfirmation": False,
 }
 
-SAFE_PRESET_TOOL = {
-    "readOnlyHint": True,
-    "destructiveHint": False,
-    "idempotentHint": True,
-    "openWorldHint": False,
-}
-
 LOCAL_STATE_TOOL = {
     "readOnlyHint": False,
     "destructiveHint": False,
@@ -135,6 +128,14 @@ OPEN_WORLD_WRITE_TOOL = {
     "idempotentHint": True,  "idempotent": True,
     "openWorldHint": False,  "openWorld": False,
     "requiresConfirmation": False,
+}
+
+
+SAFE_PRESET_TOOL = {
+    "readOnlyHint": True,
+    "destructiveHint": False,
+    "idempotentHint": True,
+    "openWorldHint": False,
 }
 
 
@@ -491,12 +492,214 @@ def get_default_cwd() -> dict[str, object]:
     effective = session_cwd if session_cwd is not None else WORKSPACE_ROOT
     return {
         "success": True,
-        "cwd": str(resolved_cwd),
         "session_cwd": str(session_cwd) if session_cwd else None,
         "workspace_root": str(WORKSPACE_ROOT),
         "effective_cwd": str(effective),
         "source": "session" if session_cwd else "workspace_root",
     }
+
+
+SAFE_PYTEST_ARGS_RE = re.compile(r"^[A-Za-z0-9_./:=,+@ -]*$")
+
+
+@mcp.tool(
+    name="safe_pwd",
+    title="Safe PWD",
+    annotations=SAFE_PRESET_TOOL,
+    description=(
+        "Return the effective working directory. "
+        "This is a fixed read-only preset, not arbitrary shell execution."
+    ),
+)
+def safe_pwd(cwd: str | None = None) -> dict[str, object]:
+    resolved_cwd = resolve_cwd(cwd, WORKSPACE_ROOT)
+    return {
+        "success": True,
+        "cwd": str(resolved_cwd),
+    }
+
+
+@mcp.tool(
+    name="safe_list_dir",
+    title="Safe List Directory",
+    annotations=SAFE_PRESET_TOOL,
+    description=(
+        "List files in a directory using the server's built-in file lister. "
+        "This is read-only and does not execute arbitrary shell commands."
+    ),
+)
+def safe_list_dir(
+    path: str | None = None,
+    recursive: bool = False,
+    limit: int = 100,
+    offset: int = 0,
+) -> dict[str, object]:
+    target = resolve_path(path or ".", WORKSPACE_ROOT)
+    capped_limit = max(1, min(limit, 200))
+    return list_files_impl(
+        target,
+        recursive=recursive,
+        limit=capped_limit,
+        offset=max(0, offset),
+        include_hidden=False,
+        respect_gitignore=True,
+        exclude_patterns=None,
+    )
+
+
+@mcp.tool(
+    name="safe_git_status",
+    title="Safe Git Status",
+    annotations=SAFE_PRESET_TOOL,
+    description=(
+        "Return git status for the selected directory using the built-in git status implementation. "
+        "This is read-only and does not run arbitrary shell commands."
+    ),
+)
+def safe_git_status(cwd: str | None = None) -> dict[str, object]:
+    resolved_cwd = resolve_cwd(cwd, WORKSPACE_ROOT)
+    return git_status_impl(cwd=resolved_cwd)
+
+
+@mcp.tool(
+    name="safe_git_diff",
+    title="Safe Git Diff",
+    annotations=SAFE_PRESET_TOOL,
+    description=(
+        "Return git diff for the selected directory using the built-in git diff implementation. "
+        "This is read-only and does not run arbitrary shell commands."
+    ),
+)
+def safe_git_diff(
+    cwd: str | None = None,
+    staged: bool = False,
+    max_bytes: int = 32768,
+) -> dict[str, object]:
+    resolved_cwd = resolve_cwd(cwd, WORKSPACE_ROOT)
+    return git_diff_impl(
+        cwd=resolved_cwd,
+        staged=staged,
+        paths=None,
+        max_bytes=max(1024, min(max_bytes, 65536)),
+        per_file_max_bytes=16384,
+    )
+
+
+@mcp.tool(
+    name="safe_git_log",
+    title="Safe Git Log",
+    annotations=SAFE_PRESET_TOOL,
+    description=(
+        "Return recent git commits for the selected directory. "
+        "This is read-only and does not run arbitrary shell commands."
+    ),
+)
+def safe_git_log(cwd: str | None = None, limit: int = 10) -> dict[str, object]:
+    resolved_cwd = resolve_cwd(cwd, WORKSPACE_ROOT)
+    capped_limit = max(1, min(limit, 50))
+    return git_log_impl(cwd=resolved_cwd, limit=capped_limit)
+
+
+@mcp.tool(
+    name="safe_repo_overview",
+    title="Safe Repo Overview",
+    annotations=SAFE_PRESET_TOOL,
+    description=(
+        "Return a compact read-only overview of the current repository: cwd, top-level files, "
+        "git status, and recent commits. This does not execute arbitrary shell commands."
+    ),
+)
+def safe_repo_overview(cwd: str | None = None) -> dict[str, object]:
+    resolved_cwd = resolve_cwd(cwd, WORKSPACE_ROOT)
+
+    files = list_files_impl(
+        resolved_cwd,
+        recursive=False,
+        limit=100,
+        offset=0,
+        include_hidden=False,
+        respect_gitignore=True,
+        exclude_patterns=None,
+    )
+
+    status = git_status_impl(cwd=resolved_cwd)
+    log = git_log_impl(cwd=resolved_cwd, limit=5)
+
+    return {
+        "success": True,
+        "cwd": str(resolved_cwd),
+        "files": files,
+        "git_status": status,
+        "git_log": log,
+    }
+
+
+@mcp.tool(
+    name="safe_pytest",
+    title="Safe Pytest",
+    annotations={
+        "readOnlyHint": False,
+        "destructiveHint": False,
+        "idempotentHint": True,
+        "openWorldHint": False,
+    },
+    description=(
+        "Run pytest with restricted arguments and a bounded timeout. "
+        "This is a preset verification command, not arbitrary shell execution."
+    ),
+)
+def safe_pytest(
+    cwd: str | None = None,
+    args: str | None = "-q",
+    timeout: int = 120,
+) -> dict[str, object]:
+    resolved_cwd = resolve_cwd(cwd, WORKSPACE_ROOT)
+    safe_args = (args or "-q").strip()
+
+    if not SAFE_PYTEST_ARGS_RE.fullmatch(safe_args):
+        return {
+            "success": False,
+            "error": {
+                "code": "unsafe_pytest_args",
+                "message": (
+                    "Only simple pytest arguments are allowed. "
+                    "Shell operators, quotes, variable expansion, and redirection are not allowed."
+                ),
+            },
+        }
+
+    blocked_tokens = [
+        ";",
+        "&&",
+        "||",
+        "|",
+        "`",
+        "$(",
+        ">",
+        "<",
+        "\\",
+        "\n",
+        "\r",
+    ]
+    if any(token in safe_args for token in blocked_tokens):
+        return {
+            "success": False,
+            "error": {
+                "code": "unsafe_pytest_args",
+                "message": "Unsafe shell token found in pytest arguments.",
+            },
+        }
+
+    effective_timeout = max(10, min(timeout, 300))
+    command = "pytest"
+    if safe_args:
+        command += " " + safe_args
+
+    return run_command_impl(
+        command=command,
+        cwd=resolved_cwd,
+        timeout=effective_timeout,
+    )
 
 
 @mcp.tool(
