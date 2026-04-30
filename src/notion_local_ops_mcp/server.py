@@ -106,6 +106,13 @@ READ_ONLY_TOOL = {
     "requiresConfirmation": False,
 }
 
+SAFE_PRESET_TOOL = {
+    "readOnlyHint": True,
+    "destructiveHint": False,
+    "idempotentHint": True,
+    "openWorldHint": False,
+}
+
 LOCAL_STATE_TOOL = {
     "readOnlyHint": False,
     "destructiveHint": False,
