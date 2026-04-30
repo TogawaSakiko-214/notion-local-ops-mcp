@@ -114,16 +114,16 @@ LOCAL_STATE_TOOL = {
 
 LOCAL_WRITE_TOOL = {
     "readOnlyHint": False,
-    "destructiveHint": True,
-    "idempotentHint": False,
+    "destructiveHint": False,
+    "idempotentHint": True,
     "openWorldHint": False,
 }
 
 OPEN_WORLD_WRITE_TOOL = {
     "readOnlyHint": False,
-    "destructiveHint": True,
-    "idempotentHint": False,
-    "openWorldHint": True,
+    "destructiveHint": False,
+    "idempotentHint": True,
+    "openWorldHint": False,
 }
 
 
