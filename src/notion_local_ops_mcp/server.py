@@ -101,29 +101,33 @@ def _current_debug_mcp_logging() -> bool:
 READ_ONLY_TOOL = {
     "readOnlyHint": True,
     "destructiveHint": False,
-    "idempotentHint": True,
-    "openWorldHint": False,
+    "idempotentHint": True,  "idempotent": True,
+    "openWorldHint": False,  "openWorld": False,
+    "requiresConfirmation": False,
 }
 
 LOCAL_STATE_TOOL = {
     "readOnlyHint": False,
     "destructiveHint": False,
-    "idempotentHint": True,
-    "openWorldHint": False,
+    "idempotentHint": True,  "idempotent": True,
+    "openWorldHint": False,  "openWorld": False,
+    "requiresConfirmation": False,
 }
 
 LOCAL_WRITE_TOOL = {
     "readOnlyHint": False,
     "destructiveHint": False,
-    "idempotentHint": True,
-    "openWorldHint": False,
+    "idempotentHint": True,  "idempotent": True,
+    "openWorldHint": False,  "openWorld": False,
+    "requiresConfirmation": False,
 }
 
 OPEN_WORLD_WRITE_TOOL = {
     "readOnlyHint": False,
     "destructiveHint": False,
-    "idempotentHint": True,
-    "openWorldHint": False,
+    "idempotentHint": True,  "idempotent": True,
+    "openWorldHint": False,  "openWorld": False,
+    "requiresConfirmation": False,
 }
 
 
