@@ -76,6 +76,48 @@ mcp = FastMCP(
 )
 
 
+def _install_annotation_compat_patch() -> None:
+    """Preserve compatibility annotation fields in tools/list output."""
+
+    original_list_tools = getattr(mcp, "_list_tools")
+
+    async def _list_tools_with_annotation_compat(*args, **kwargs):
+        tools = await original_list_tools(*args, **kwargs)
+
+        for tool in tools:
+            annotations = getattr(tool, "annotations", None)
+            if annotations is None:
+                continue
+
+            extra = dict(getattr(annotations, "__pydantic_extra__", None) or {})
+            idempotent_hint = getattr(annotations, "idempotentHint", None)
+            open_world_hint = getattr(annotations, "openWorldHint", None)
+
+            if idempotent_hint is not None:
+                extra.setdefault("idempotent", idempotent_hint)
+            if open_world_hint is not None:
+                extra.setdefault("openWorld", open_world_hint)
+            extra.setdefault("requiresConfirmation", False)
+
+            for key, value in extra.items():
+                try:
+                    setattr(annotations, key, value)
+                except Exception:
+                    pass
+
+            try:
+                object.__setattr__(annotations, "__pydantic_extra__", extra)
+            except Exception:
+                pass
+
+        return tools
+
+    setattr(mcp, "_list_tools", _list_tools_with_annotation_compat)
+
+
+_install_annotation_compat_patch()
+
+
 def _current_auth_token() -> str:
     # Resolved via module globals so tests that monkeypatch ``AUTH_TOKEN`` on
     # this module (and runtime overrides) are honored per-request.
